@@ -2,7 +2,11 @@
 /shelf/
 /workspace.xml
 
-TestFiles/*
+# Exclude test files (copyright & file size issues)
+TestFiles/**
+
+# Exclude PyCharm files
+.idea/**
 
 # Ignore Mac DS_Store files
 .DS_Store
