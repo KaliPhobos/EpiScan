@@ -182,6 +182,9 @@
      <property name="text">
       <string>Delete cached data</string>
      </property>
+     <property name="checked">
+      <bool>true</bool>
+     </property>
     </widget>
     <widget class="QLabel" name="label_4">
      <property name="geometry">
@@ -359,7 +362,7 @@
       <double>0.100000000000000</double>
      </property>
      <property name="value">
-      <double>0.300000000000000</double>
+      <double>0.800000000000000</double>
      </property>
     </widget>
     <widget class="QPushButton" name="button_applyGraphics">
