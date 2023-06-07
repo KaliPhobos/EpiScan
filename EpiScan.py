@@ -16,51 +16,96 @@ import matplotlib.colors as mcolors
 
 # Initialize all vars
 silent_noGui = False
+types = [3] # Holds the names for all methods to analyse the data, used to match the type
+types[0] = "Absolute brightness"  # String for method 1
+types[1] = "Perceived brightness"  # String for method 2
+types[2] = "R,G,B as separate channels"  # String for method 3
+
 
 """
-Table 'self.brightness' contains the raw self.brightness values split into 5 lines:
-1. line (0): The absolute self.brightness for each frame
-2. line (1): The perceived self.brightness for each frame (thx D. Finley, alienryderflex.com/hsp.html)
-3. line (2): The R-channels self.brightness for each frame
-4. line (3): The G-channels self.brightness for each frame
-5. line (4): The B-channels self.brightness for each frame
-Table 'self.brightness_absolute' contains statistics across X lines, X being the max span according to settings
-1. line (0): The absolute self.brightness changes across 2 neighboring frames (starting with the first)
-2. line (1): The absolute self.brightness changes across 3 neighboring frames (starting with the first)
-3. line (2): The absolute self.brightness changes across 4 neighboring frames (starting with the first) and so on
-Table 'self.brightness_perceived' does the same but uses the perceived instead of actual self.brightness as base data
-Table 'self.brightness_channel_R' does the same but uses the R-channel only as base data
-Table 'self.brightness_channel_G' does the same but uses the R-channel only as base data
-Table 'self.brightness_channel_B' does the same but uses the R-channel only as base data
+Table 'brightness' contains the raw brightness values split into 5 lines:
+1. line (0): The absolute brightness for each frame
+2. line (1): The perceived brightness for each frame (thx D. Finley, alienryderflex.com/hsp.html)
+3. line (2): The R-channels brightness for each frame
+4. line (3): The G-channels brightness for each frame
+5. line (4): The B-channels brightness for each frame
+Table 'brightness_absolute' contains statistics across X lines, X being the max span according to settings
+1. line (0): The absolute brightness changes across 2 neighboring frames (starting with the first)
+2. line (1): The absolute brightness changes across 3 neighboring frames (starting with the first)
+3. line (2): The absolute brightness changes across 4 neighboring frames (starting with the first) and so on
+Table 'brightness_perceived' does the same but uses the perceived instead of actual brightness as base data
+Table 'brightness_channel_R' does the same but uses the R-channel only as base data
+Table 'brightness_channel_G' does the same but uses the R-channel only as base data
+Table 'brightness_channel_B' does the same but uses the R-channel only as base data
 """
-class MainWindow(QtWidgets.QDialog):
+
+
+
+class Job:
     def __init__(self):
+        self.file_path = "" # Path to the current job's video file
+        self.old_file_path = "" # Path to the previously processed video file
+        self.job_type = ""
+        self.is_silent_mode = False
+
+    def set_type(self, type):
+        self.type = type    # Type of the current job, int 1...3 are valid
+        # TODO: Maybe an enum would be simpler?
+
+    def set_fps(self, fps):
+        self.fps = fps  # frames per second for the current job
+
+    def set_cap(self, cap):
+        self.cap = cap  # Contains all frames
+
+    def set_frameSpan(self, frameSpan):
+        self.frameSpan = frameSpan  # Current frame width of the analysis span
+    
+    def set_plotMaxColors(self, plotMaxColors):
+        self.plotMaxColors = plotMaxColors  # Number of plots to be drawn if the analysis span exceeds 10
+
+    def set_colorBorderValue(self, colorBorderValue):
+        self.colorBorderValue = colorBorderValue  # Value (0...1) at which the second color should be placed in the linear gradient
+        
+    def set_color1(self, color):
+        self.color1 = color  # Color 1 for 3-color linear gradient coloring of data plots
+
+    def set_color2(self, color):
+        self.color2 = color  # Color 2 for 3-color linear gradient coloring of data plots
+
+    def set_color3(self, color):
+        self.color3 = color  # Color 3 for 3-color linear gradient coloring of data plots
+
+    def set_yLim(self, y_limit):
+        self.yLim = y_limit  # Maximum Y-Value for plots
+
+    def set_timestampStart(self):
+        print("...")    # Track the timestamp at which processing begins
+        
+
+class MainWindow(QtWidgets.QDialog):
+    def __init__(self, current_job):
         super().__init__()
         # Initialize all vars
-        self.type = 0  # The currently selected method how brightness should be handled (1...3 are valid)
-        self.type_1 = "Absolute brightness"  # String for method 1
-        self.type_2 = "Perceived brightness"  # String for method 2
-        self.type_3 = "R,G,B as separate channels"  # String for method 3
-        self.fps = 0
-        self.file_path = ''  # Path to the video file
-        self.file_path_old = ''  # Path to the previously processed video file
-        self.gui_isResetForced = True  # Should all cached data be deleted instead of reused?
-        self.brightness = numpy.zeros((5, 2))  # The array containing all resulting raw data
-        self.brightness_absolute = numpy.zeros((2, 2))
-        self.brightness_perceived = numpy.zeros((2, 2))
-        self.brightness_channel_R = numpy.zeros((2, 2))
-        self.brightness_channel_G = numpy.zeros((2, 2))
-        self.brightness_channel_B = numpy.zeros((2, 2))
-        self.is_analyzed = [False, False, False]  # Was an analysis already completed? (Array of booleans)
-        self.cap = None  # Contains all frames
-        self.gui_frameSpan = 20  # Current width of the analysis span
-        self.gui_plotMaxColors = 20  # Number of plots to be drawn if the analysis span exceeds 10
-        self.gui_colorBorderValue = 0.8  # Value (0...1) at which the second color should be placed in the linear gradient
-        self.gui_color1 = '#FF7000'  # Color 1 for 3-color linear gradient coloring of data plots
-        self.gui_color2 = '#FF0000'  # Color 2 for 3-color linear gradient coloring of data plots
-        self.gui_color4 = '#000000'  # Color 3 for 3-color linear gradient coloring of data plots
-        self.gui_yLim = 120  # Maximum Y-Value for plots
-        self.timestamp_start = datetime.datetime
+        self.job = current_job
+        self.job.set_type(0)  # The currently selected method how brightness should be handled (1...3 are valid)
+        self.job.set_fps(0)
+        self.job.set_gui_isResetForced(True)  # Should all cached data be deleted instead of reused?
+        self.job.brightness = numpy.zeros((5, 2))  # The array containing all resulting raw data
+        self.job.brightness_absolute = numpy.zeros((2, 2))
+        self.job.brightness_perceived = numpy.zeros((2, 2))
+        self.job.brightness_channel_R = numpy.zeros((2, 2))
+        self.job.brightness_channel_G = numpy.zeros((2, 2))
+        self.job.brightness_channel_B = numpy.zeros((2, 2))
+        self.job.is_analyzed = [False, False, False]  # Was an analysis already completed? (Array of booleans)
+        self.job.set_cap(None)  # Contains all frames
+        self.job.set_frameSpan(20)  # Current frame width of the analysis span
+        self.job.set_plotMaxColors(20)  # Number of plots to be drawn if the analysis span exceeds 10
+        self.job.set_colorBorderValue(0.8)  # Value (0...1) at which the second color should be placed in the linear gradient
+        self.job.set_color1('#FF7000')  # Color 1 for 3-color linear gradient coloring of data plots
+        self.job.set_color2('#FF0000')  # Color 2 for 3-color linear gradient coloring of data plots
+        self.job.set_color3('#000000')  # Color 3 for 3-color linear gradient coloring of data plots
+        self.job.set_yLim(120)  # Maximum Y-Value for plots
 
         uic.loadUi("EpiScan_GUI.ui", self)
         self.button_load.clicked.connect(self.gui_load_file)
@@ -95,7 +140,7 @@ class MainWindow(QtWidgets.QDialog):
 
     def gui_load_file(self):
         # Read the new file path and forward it
-        self.file_path = self.lineEdit_filePath.text()
+        self.job.set_file_path(self.lineEdit_filePath.text())
         self.gui_forced_processFile()
 
 
@@ -104,28 +149,29 @@ class MainWindow(QtWidgets.QDialog):
     def gui_apply_settings_changes(self):
         print("APPLY SETTINGS CHANGES!")
         # Apply changes in GUI
-        self.gui_frameSpan = self.spinBox_frameSpan.value()
-        print("Set: gui_frameSpan = " + str(self.gui_frameSpan))
-        self.gui_isResetForced = self.checkBox_isResetForced.isChecked()
+        self.job.set_frameSpan(self.spinBox_frameSpan.value())
+        print("Set: gui_frameSpan = " + str(self.job.frameSpan))
+        self.job.set_isResetForced(self.checkBox_isResetForced.isChecked())
         print("Set: gui_isResetForced = " + str(self.gui_isResetForced))
-        self.gui_plotMaxColors = self.spinBox_plotMaxColors.value()
-        print("Set: gui_plotMaxColors = " + str(self.gui_plotMaxColors))
+        self.job.set_plotMaxColors(self.spinBox_plotMaxColors.value())
+        print("Set: gui_plotMaxColors = " + str(self.job.plotMaxColors))
 
 
     def gui_apply_graphics_changes(self):
         print("APPLY GRAPHICS CHANGES!")
         # Apply changes in GUI
 
-        self.gui_colorBorderValue = self.doubleSpinBox_colorBorderValue.value()
-        print("Set: gui_colorBorderValue = " + str(self.gui_colorBorderValue))
-        self.gui_color1 = self.lineEdit_color1.text()
-        print("Set: gui_color1 = " + str(self.gui_color1))
-        self.gui_color2 = self.lineEdit_color2.text()
-        print("Set: gui_color2 = " + str(self.gui_color2))
-        self.gui_color4 = self.lineEdit_color3.text()
-        print("Set: gui_color4 = " + str(self.gui_color4))
-        self.gui_yLim = self.spinBox_yLim.value()
-        print("Set: gui_yLim = " + str(self.gui_yLim))
+        # TODO: use job object's setters
+        self.job.colorBorderValue = self.doubleSpinBox_colorBorderValue.value()
+        print("Set: gui_colorBorderValue = " + str(self.job.colorBorderValue))
+        self.job.color1 = self.lineEdit_color1.text()
+        print("Set: gui_color1 = " + str(self.job.color1))
+        self.job.color2 = self.lineEdit_color2.text()
+        print("Set: gui_color2 = " + str(self.job.color2))
+        self.job.color3 = self.lineEdit_color3.text()
+        print("Set: gui_color4 = " + str(self.job.color3))
+        self.job.yLim = self.spinBox_yLim.value()
+        print("Set: gui_yLim = " + str(self.job.yLim))
 
     def processFile(self): # Read the contents of a given video file and analyze each frame
         # Load the video and determine number of frames and self.fps
@@ -145,11 +191,11 @@ class MainWindow(QtWidgets.QDialog):
             # Check if a new file has been selected, so old data has to be purged
             if (self.file_path_old != self.file_path or self.gui_isResetForced or self.cap == None or len(self.brightness[0]) != int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))):
                 self.brightness = numpy.zeros((5, self.frame_count))
-                self.brightness_absolute = numpy.zeros((self.gui_frameSpan, self.frame_count))
-                self.brightness_perceived = numpy.zeros((self.gui_frameSpan, self.frame_count))
-                self.brightness_channel_R = numpy.zeros((self.gui_frameSpan, self.frame_count))
-                self.brightness_channel_G = numpy.zeros((self.gui_frameSpan, self.frame_count))
-                self.brightness_channel_B = numpy.zeros((self.gui_frameSpan, self.frame_count))
+                self.brightness_absolute = numpy.zeros((self.job.frameSpan, self.frame_count))
+                self.brightness_perceived = numpy.zeros((self.job.frameSpan, self.frame_count))
+                self.brightness_channel_R = numpy.zeros((self.job.frameSpan, self.frame_count))
+                self.brightness_channel_G = numpy.zeros((self.job.frameSpan, self.frame_count))
+                self.brightness_channel_B = numpy.zeros((self.job.frameSpan, self.frame_count))
                 self.is_analyzed = [False, False, False]
 
 
@@ -196,16 +242,16 @@ class MainWindow(QtWidgets.QDialog):
         # TODO: How to handle cases in which only gui_maxSpan is getting increased? Cached data should then be used but new data added
         if (self.file_path_old != self.file_path or self.gui_isResetForced or self.cap == None or len(self.brightness[0]) != int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))):
             print("set brightness data arrays to appropriate size")
-            self.brightness_absolute = numpy.zeros((self.gui_frameSpan, self.frame_count))
-            self.brightness_perceived = numpy.zeros((self.gui_frameSpan, self.frame_count))
-            self.brightness_channel_R = numpy.zeros((self.gui_frameSpan, self.frame_count))
-            self.brightness_channel_G = numpy.zeros((self.gui_frameSpan, self.frame_count))
-            self.brightness_channel_B = numpy.zeros((self.gui_frameSpan, self.frame_count))
+            self.brightness_absolute = numpy.zeros((self.job.frameSpan, self.frame_count))
+            self.brightness_perceived = numpy.zeros((self.job.frameSpan, self.frame_count))
+            self.brightness_channel_R = numpy.zeros((self.job.frameSpan, self.frame_count))
+            self.brightness_channel_G = numpy.zeros((self.job.frameSpan, self.frame_count))
+            self.brightness_channel_B = numpy.zeros((self.job.frameSpan, self.frame_count))
             self.is_analyzed = [False, False, False]
         else:
             print("cached data looks good, will not be deleted")
 
-        if (self.type == 1 and len(self.brightness_absolute) < self.gui_frameSpan):
+        if (self.type == 1 and len(self.brightness_absolute) < self.job.frameSpan):
             print("additional lines required as gui_maxSpan was increased")
 
         for i in range(0, len(self.is_analyzed)):
@@ -232,8 +278,8 @@ class MainWindow(QtWidgets.QDialog):
         QtWidgets.QApplication.processEvents()
 
         # Create separate statistics for each frame span
-        print("DEBUG: Frame spans in which brightness changes will be calculated) are 2..." + str(self.gui_frameSpan) + " (max value, 'frame_span')")
-        for frame_span in range(1, self.gui_frameSpan):
+        print("DEBUG: Frame spans in which brightness changes will be calculated) are 2..." + str(self.job.frameSpan) + " (max value, 'frame_span')")
+        for frame_span in range(1, self.job.frameSpan):
             # Iterate over all video frames (except the last X frames, X being the current frame span)
             print("DEBUG: span=" + str(frame_span) + ", iterating over frames 0..." + str(self.frame_count - frame_span - 1) + " (will decrease as span size is going up)")
             for i in range(0, self.frame_count - frame_span):
@@ -272,7 +318,7 @@ class MainWindow(QtWidgets.QDialog):
 
                 # Update GUI to track progress
                 if (i % 10000 == 0):
-                    self.reportStatus("Step 2/2 (analyzing data)", self.frame_count * frame_span + i, self.gui_frameSpan * (self.frame_count - self.gui_frameSpan / 2))
+                    self.reportStatus("Step 2/2 (analyzing data)", self.frame_count * frame_span + i, self.job.frameSpan * (self.frame_count - self.job.frameSpan / 2))
                     # TODO: Numbers appear to be wrong, reached values >>100%
                     # Process pending events to update the GUI
                     QtWidgets.QApplication.processEvents()
@@ -284,7 +330,7 @@ class MainWindow(QtWidgets.QDialog):
                         # timestamp_delta = datetime.timedelta(timestamp_current-timestamp_delta)
                         # print(str(timestamp_delta))
 
-        self.reportStatus("Step 2/2 (analyzing data)", self.frame_count * self.gui_frameSpan + i, self.gui_frameSpan * self.frame_count)
+        self.reportStatus("Step 2/2 (analyzing data)", self.frame_count * self.job.frameSpan + i, self.job.frameSpan * self.frame_count)
         # Process pending events to update the GUI
         QtWidgets.QApplication.processEvents()
 
@@ -295,12 +341,12 @@ class MainWindow(QtWidgets.QDialog):
 
 
     def generate_color(self, value):
-        if value <= self.gui_colorBorderValue:
-            scaled_value = value / self.gui_colorBorderValue
-            cmap = mcolors.LinearSegmentedColormap.from_list('custom_cmap', [self.gui_color1, self.gui_color2])  # Orange --> Red
+        if value <= self.job.colorBorderValue:
+            scaled_value = value / self.job.colorBorderValue
+            cmap = mcolors.LinearSegmentedColormap.from_list('custom_cmap', [self.job.color1, self.job.color2])  # Orange --> Red
         else:
-            scaled_value = (value - self.gui_colorBorderValue) / (1 - self.gui_colorBorderValue)
-            cmap = mcolors.LinearSegmentedColormap.from_list('custom_cmap', [self.gui_color2, self.gui_color4])  # Red --> Black
+            scaled_value = (value - self.job.colorBorderValue) / (1 - self.job.colorBorderValue)
+            cmap = mcolors.LinearSegmentedColormap.from_list('custom_cmap', [self.job.color2, self.job.color3])  # Red --> Black
 
         color = cmap(scaled_value)
         hex_code = mcolors.rgb2hex(color)
@@ -331,7 +377,7 @@ class MainWindow(QtWidgets.QDialog):
         ax.axhspan(85, 90, facecolor='#ff4e00', alpha=0.4, edgecolor='none')
         ax.axhspan(90, 95, facecolor='#ff3600', alpha=0.4, edgecolor='none')
         ax.axhspan(95, 100, facecolor='#ff0000', alpha=0.4, edgecolor='none')   # red
-        ax.axhspan(100, self.gui_yLim, facecolor='#950101', alpha=0.4, edgecolor='none')
+        ax.axhspan(100, self.job.yLim, facecolor='#950101', alpha=0.4, edgecolor='none')
 
         print("plotting begins shortly. type=" + str(self.type))
         # TODO: Seemingly stuck to self.type==1
@@ -340,21 +386,21 @@ class MainWindow(QtWidgets.QDialog):
             # Create a plot to display the results for absolute brightness values
             print("Plotting absolute brightness plots as requested")
             # The number of plots will either be equal to gui_maxSpan, but limited to gui_plotColors
-            print(str(self.gui_frameSpan) + " plots calculated, a maximum of " + str(self.gui_plotMaxColors) + " can be drawn")
-            if (self.gui_frameSpan<=self.gui_plotMaxColors):
-                print("Plotting " + str(self.gui_frameSpan) + " plots as requested")
-                for i in range(0, self.gui_frameSpan):
-                    hex_code = self.generate_color(i / self.gui_frameSpan)
-                    opacity = i / self.gui_plotMaxColors
+            print(str(self.job.frameSpan) + " plots calculated, a maximum of " + str(self.job.plotMaxColors) + " can be drawn")
+            if (self.job.frameSpan<=self.job.plotMaxColors):
+                print("Plotting " + str(self.job.frameSpan) + " plots as requested")
+                for i in range(0, self.job.frameSpan):
+                    hex_code = self.generate_color(i / self.job.frameSpan)
+                    opacity = i / self.job.plotMaxColors
                     # print(hex_code)
                     plt.plot(time, self.brightness_absolute[i], label='span='+str(i), color=hex_code, alpha=opacity)
             else:
-                print(str(self.gui_frameSpan) + " plots calculated but only " + str(self.gui_plotMaxColors) + " will be drawn")
-                for i in range(0, self.gui_plotMaxColors):
-                    hex_code = self.generate_color(i / self.gui_plotMaxColors)
-                    opacity = i / self.gui_plotMaxColors
+                print(str(self.job.frameSpan) + " plots calculated but only " + str(self.job.plotMaxColors) + " will be drawn")
+                for i in range(0, self.job.plotMaxColors):
+                    hex_code = self.generate_color(i / self.job.plotMaxColors)
+                    opacity = i / self.job.plotMaxColors
                     # print(hex_code)
-                    plt.plot(time, self.brightness_absolute[math.floor((i / self.gui_plotMaxColors) * (self.gui_frameSpan - 1))], label='span=' + str(math.floor((i / self.gui_plotMaxColors) * (self.gui_frameSpan - 1))), color=hex_code, alpha=opacity)
+                    plt.plot(time, self.brightness_absolute[math.floor((i / self.job.plotMaxColors) * (self.job.frameSpan - 1))], label='span=' + str(math.floor((i / self.job.plotMaxColors) * (self.job.frameSpan - 1))), color=hex_code, alpha=opacity)
         elif (self.type == 2):
             # TODO: Implement perceived self.brightness
             print("...")
@@ -362,7 +408,7 @@ class MainWindow(QtWidgets.QDialog):
             # Create a plot to display the results for R, G and B separately
             print("Plotting R, G and B plots as requested")
             # The number of plots will either be equal to gui_maxSpan, but limited to gui_plotColors
-            print(str(self.gui_frameSpan) + " plots calculated, a maximum of " + str(self.gui_plotMaxColors) + " can be drawn")
+            print(str(self.job.frameSpan) + " plots calculated, a maximum of " + str(self.job.plotMaxColors) + " can be drawn")
             plt.plot(time, self.brightness_channel_R[0], label='RED', color='#ff0000')
             plt.plot(time, self.brightness_channel_G[0], label='GREEN', color='#00ff00')
             plt.plot(time, self.brightness_channel_B[0], label='BLUE', color='#0000ff')
@@ -374,7 +420,7 @@ class MainWindow(QtWidgets.QDialog):
 
         plt.xlabel('Time (s)')
         plt.ylabel('Change in self.brightness')
-        plt.ylim(0, self.gui_yLim)
+        plt.ylim(0, self.job.yLim)
         # plt.legend()
 
         if (silent_noGui):
@@ -456,9 +502,15 @@ class MainWindow(QtWidgets.QDialog):
         print(status)
 
 
-# Create an instance of the widget
+
+
+
+# Create the jobs array and add a first object to it
+jobs = [Job()]
+
+# Create an instance of the widget and assign the first job
 app = QtWidgets.QApplication([])
-window = MainWindow()
+window = MainWindow(jobs[0])
 window.show()
 
 # Get initial values, so they don't differ from GUI contents
