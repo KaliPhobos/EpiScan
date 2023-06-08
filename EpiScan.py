@@ -122,12 +122,12 @@ class MainWindow(QtWidgets.QDialog):
 
     def gui_loadFile(self, file_path):
         if os.path.isdir(file_path):
-            print("Please select a file, not a folder: " + file_path)
+            print("Please select a file, not a folder: " + str(file_path))
             return
         if os.path.isfile(file_path):
             print("Provided file: " + file_path)
         else:
-            print("Please select a file. given: " + file_path)
+            print("Please select a file. given: " + str(file_path))
             return
         if (file_path == self.job.file_path_old):
             print("Duplicate file... Click again to ignore & analyze")
@@ -174,12 +174,12 @@ class MainWindow(QtWidgets.QDialog):
 
     def processFile(self): # Read the contents of a given video file and analyze each frame
         global types
-        # Load the video and determine number of frames and self.fps
+        # Load the video and determine number of frames and fps
         print("Load File " + str(self.job.file_path))
         self.button_load.setText("Abort")
-        self.cap = cv2.VideoCapture(self.job.file_path)
-        self.job.frameCount = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.fps = int(self.cap.get(cv2.CAP_PROP_FPS))
+        self.job.cap = cv2.VideoCapture(self.job.file_path)
+        self.job.frameCount = int(self.job.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.job.fps = int(self.job.cap.get(cv2.CAP_PROP_FPS))
 
         # Check if the file has been analyzed before and a .csv file with the results is available
         if (os.path.isfile(self.job.file_path+".csv")):
@@ -196,11 +196,14 @@ class MainWindow(QtWidgets.QDialog):
                 self.job.set_analyzed(2, True)
             elif (not all(value == '0' for value in self.job.brightness[2])):
                 self.job.set_analyzed(2, True)
+            # Show results: Which analysis had already been run according to the imported data
+            for i in range(0, len(self.job.is_analyzed)):
+                print("DEBUG: is_analyzed[" + str(i) + "] is " + str(self.job.is_analyzed[i]))
         else:
             print("No file '" + self.job.file_path + ".csv' with cached data found. Will have to analyze file")
 
             # Check if a new file has been selected, so old data has to be purged
-            if (self.job.file_path_old != self.job.file_path or self.gui_isResetForced or self.cap == None or len(self.job.brightness[0]) != int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))):
+            if (self.job.file_path_old != self.job.file_path or self.job.is_resetForced or self.job.cap == None or len(self.job.brightness[0]) != int(self.job.cap.get(cv2.CAP_PROP_FRAME_COUNT))):
                 self.job.brightness = numpy.zeros((5, self.job.frameCount))
                 self.job.brightnessAbsolute = numpy.zeros((self.job.frameSpan, self.job.frameCount))
                 self.job.brightnessPerceived = numpy.zeros((self.job.frameSpan, self.job.frameCount))
@@ -213,25 +216,25 @@ class MainWindow(QtWidgets.QDialog):
         # Determine the selected self.job.brightness option
         self.job.brightness_type = self.comboBox_brightness.currentText()
         print("Trying to match analysis mode '" + str(self.job.brightness_type) + '\'')
-        print("Available options: ")
-        print("1: '" + str(types[0]) + '\'')
-        print("2: '" + str(types[1]) + '\'')
-        print("3: '" + str(types[2]) + '\'')
+        print(" Available options: ")
+        print(" 1: '" + str(types[0]) + '\'')
+        print(" 2: '" + str(types[1]) + '\'')
+        print(" 3: '" + str(types[2]) + '\'')
 
         if (self.job.brightness_type == types[0]):
             self.job.type = 1
-            print("Analysis on " + str(types[0]))
+            print(" Match: Analysis on " + str(types[0]) + " (type 1)")
             self.calc_brightnessAbsolute()
         elif (self.job.brightness_type == types[1]):
             self.job.type = 2
-            print("Analysis on " + str(types[1]))
+            print(" Match: Analysis on " + str(types[1]) + " (type 2)")
             self.calc_brightnessPerceived()
         elif (self.job.brightness_type == types[2]):
             self.job.type = 3
-            print("Analysis on " + str(types[2]))
+            print(" Match: Analysis on " + str(types[2]) + " (type 3)")
             self.calc_brightnessSeparate()
         else:
-            print("ERROR: Unknown analysis mode selected: " + str(self.job.type))
+            print("ERROR: Unknown analysis mode selected: '" + str(self.job.type) + '\'')
             return
 
         # Step 1 completed, data from all frames has been collected
@@ -248,10 +251,9 @@ class MainWindow(QtWidgets.QDialog):
 
 
     def processData(self):
-
         # Check if cached data is supposed to be deleted & create new arrays if necessary
         # TODO: How to handle cases in which only gui_maxSpan is getting increased? Cached data should then be used but new data added
-        if (self.job.file_path_old != self.job.file_path or self.gui_isResetForced or self.cap == None or len(self.job.brightness[0]) != int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))):
+        if (self.job.file_path_old != self.job.file_path or self.job.isResetForced or self.job.cap == None or len(self.job.brightness[0]) != int(self.job.cap.get(cv2.CAP_PROP_FRAME_COUNT))):
             print("set brightness data arrays to appropriate size")
             self.job.brightnessAbsolute = numpy.zeros((self.job.frameSpan, self.job.frameCount))
             self.job.brightnessPerceived = numpy.zeros((self.job.frameSpan, self.job.frameCount))
@@ -269,7 +271,7 @@ class MainWindow(QtWidgets.QDialog):
             print("DEBUG: is_analyzed[" + str(i) + "] is " + str(self.job.is_analyzed[i]))
 
         # Check if processing is even necessary
-        if (self.cap == None):
+        if (self.job.cap == None):
             print("No video file has been selected. Returning.")
             return
 
@@ -320,8 +322,8 @@ class MainWindow(QtWidgets.QDialog):
                         value[1] += abs(self.job.brightness[self.job.type, j] - self.job.brightness[self.job.type, j + 1])
                         value[2] += abs(self.job.brightness[self.job.type + 1, j] - self.job.brightness[self.job.type + 1, j + 1])
                     self.job.brightnessChannelR[frame_span - 1][i] = value[0]
-                    self.job.brightnessChannelR[frame_span - 1][i] = value[1]
-                    self.job.brightnessChannelR[frame_span - 1][i] = value[2]
+                    self.job.brightnessChannelG[frame_span - 1][i] = value[1]
+                    self.job.brightnessChannelB[frame_span - 1][i] = value[2]
 
                 else:
                     print("ERROR: Unknown analysis mode selected: " + str(self.job.type))
@@ -369,7 +371,7 @@ class MainWindow(QtWidgets.QDialog):
         global silent_noGui
 
         # Convert frame count to time in seconds for x-axis
-        time = [i / self.fps for i in range(len(self.job.brightness[0]))]
+        time = [i / self.job.fps for i in range(len(self.job.brightness[0]))]
 
         # Create a plot to display the results and make it quite wide and gray in background
         fig, ax = plt.subplots(figsize=(15, 5))
@@ -389,9 +391,7 @@ class MainWindow(QtWidgets.QDialog):
         ax.axhspan(90, 95, facecolor='#ff3600', alpha=0.4, edgecolor='none')
         ax.axhspan(95, 100, facecolor='#ff0000', alpha=0.4, edgecolor='none')   # red
         ax.axhspan(100, self.job.yLim, facecolor='#950101', alpha=0.4, edgecolor='none')
-
         print("plotting begins shortly. type=" + str(self.job.type))
-        # TODO: Seemingly stuck to self.job.type==1
 
         if (self.job.type == 1):
             # Create a plot to display the results for absolute brightness values
@@ -413,13 +413,12 @@ class MainWindow(QtWidgets.QDialog):
                     # print(hex_code)
                     plt.plot(time, self.job.brightnessAbsolute[math.floor((i / self.job.plotMaxColors) * (self.job.frameSpan - 1))], label='span=' + str(math.floor((i / self.job.plotMaxColors) * (self.job.frameSpan - 1))), color=hex_code, alpha=opacity)
         elif (self.job.type == 2):
-            # TODO: Implement perceived self.job.brightness
+            # TODO: Implement perceived brightness plotting
             print("...")
         elif (self.job.type == 3):
             # Create a plot to display the results for R, G and B separately
             print("Plotting R, G and B plots as requested")
             # The number of plots will either be equal to gui_maxSpan, but limited to gui_plotColors
-            print(str(self.job.frameSpan) + " plots calculated, a maximum of " + str(self.job.plotMaxColors) + " can be drawn")
             plt.plot(time, self.job.brightnessChannelR[0], label='RED', color='#ff0000')
             plt.plot(time, self.job.brightnessChannelG[0], label='GREEN', color='#00ff00')
             plt.plot(time, self.job.brightnessChannelB[0], label='BLUE', color='#0000ff')
@@ -430,7 +429,7 @@ class MainWindow(QtWidgets.QDialog):
 
 
         plt.xlabel('Time (s)')
-        plt.ylabel('Change in self.job.brightness')
+        plt.ylabel('Change in brightness')
         plt.ylim(0, self.job.yLim)
         # plt.legend()
 
@@ -445,7 +444,7 @@ class MainWindow(QtWidgets.QDialog):
     def calc_brightnessAbsolute(self):
         # Iterate over video frames
         for i in range(0, self.job.frameCount):
-            is_validFrame, frame = self.cap.read()
+            is_validFrame, frame = self.job.cap.read()
             if not is_validFrame:
                 # Checking for unexpected EoF
                 print("No next frame found")
@@ -464,7 +463,7 @@ class MainWindow(QtWidgets.QDialog):
     def calc_brightnessPerceived(self):
         # Iterate over video frames
         for i in range(0, self.job.frameCount):
-            is_validFrame, frame = self.cap.read()
+            is_validFrame, frame = self.job.cap.read()
             if not is_validFrame:
                 # Checking for unexpected EoF
                 break
@@ -483,7 +482,7 @@ class MainWindow(QtWidgets.QDialog):
     def calc_brightnessSeparate(self):
         # Iterate over video frames
         for i in range(0, self.job.frameCount):
-            is_validFrame, frame = self.cap.read()
+            is_validFrame, frame = self.job.cap.read()
             if not is_validFrame:
                 # Checking for unexpected EoF
                 break
@@ -506,7 +505,8 @@ class MainWindow(QtWidgets.QDialog):
 
 
     def reportStatus(self, task, current_frame, progress_count=100):
-        percent_done = int(current_frame / self.job.frameCount * 100)
+        # percent_done = int(current_frame / self.job.frameCount * 100)
+        percent_done = int(100 * current_frame / progress_count)
         self.progressBar.setValue(percent_done)
         status = f"{task} - Processing frame {current_frame} of {progress_count}... {percent_done}% done."
         self.label_progress.setText(status)

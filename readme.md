@@ -30,6 +30,8 @@ What to expect from this tool in the long run
 - Preview function for detected conspicuous scenes for manual review (by partners/friends obviously!)
 - Correct handling of whole series over several seasons/episodes
 - Appropriate readme
+- Estimations for processing time
+- Optional headless mode (running in background to scan large quantities of files & saving results with no user interaction required)
 
 # DISCLAIMER
 This tool is primarily intended for partners and friends of people with photosensitive epilepsy to help them get better results in checking whether a movie is appropriate for their friend/partner.
